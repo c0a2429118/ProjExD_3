@@ -105,7 +105,9 @@ class Bomb:
 
 
 class Score:
-    """スコア表示"""
+    """
+    スコア表示
+    """
     def __init__(self):
         # 日本語フォント指定（環境により無ければ代替フォントが使われます）
         self.fonto = pg.font.SysFont("hgp創英角ﾎﾟｯﾌﾟ体", 30)
