@@ -2,6 +2,7 @@ import os
 import random
 import sys
 import time
+import math  # ★向きに応じたビーム用に追加
 import pygame as pg
 
 
@@ -46,6 +47,7 @@ class Bird:
         self.img = __class__.imgs[(+5, 0)]
         self.rct = self.img.get_rect()
         self.rct.center = xy
+        self.dire = (+5, 0)  # ★初期向き（右）
 
     def change_img(self, num: int, screen: pg.Surface):
         self.img = pg.transform.rotozoom(pg.image.load(f"fig/{num}.png"), 0, 0.9)
@@ -61,18 +63,24 @@ class Bird:
         if check_bound(self.rct) != (True, True):
             self.rct.move_ip(-sum_mv[0], -sum_mv[1])
         if sum_mv != [0, 0]:
+            self.dire = tuple(sum_mv)  # ★現在の移動方向を向きとして保持
             self.img = __class__.imgs[tuple(sum_mv)]
         screen.blit(self.img, self.rct)
 
 
 class Beam:
-    """ビーム"""
+    """向きに応じて飛ぶビーム"""
     def __init__(self, bird: "Bird"):
-        self.img = pg.image.load("fig/beam.png")
+        self.img0 = pg.image.load("fig/beam.png")
+        self.vx, self.vy = bird.dire  # ★こうかとんの向きを取得
+        # 角度を求めて画像を回転
+        angle = math.degrees(math.atan2(-self.vy, self.vx))
+        self.img = pg.transform.rotozoom(self.img0, angle, 1.0)
         self.rct = self.img.get_rect()
-        self.rct.centery = bird.rct.centery
-        self.rct.left = bird.rct.right
-        self.vx, self.vy = +5, 0
+
+        # ★ビーム初期位置をこうかとんの向きに応じて補正
+        self.rct.centerx = bird.rct.centerx + bird.rct.width * self.vx / 5
+        self.rct.centery = bird.rct.centery + bird.rct.height * self.vy / 5
 
     def update(self, screen: pg.Surface):
         self.rct.move_ip(self.vx, self.vy)
@@ -91,8 +99,10 @@ class Bomb:
 
     def update(self, screen: pg.Surface):
         yoko, tate = check_bound(self.rct)
-        if not yoko: self.vx *= -1
-        if not tate: self.vy *= -1
+        if not yoko:
+            self.vx *= -1
+        if not tate:
+            self.vy *= -1
         self.rct.move_ip(self.vx, self.vy)
         screen.blit(self.img, self.rct)
 
@@ -118,17 +128,17 @@ class Score:
 class Explosion:
     """爆発エフェクト"""
     def __init__(self, center: tuple[int, int]):
-        img0 = pg.image.load("fig/explosion.gif")  # 元画像
-        img1 = pg.transform.flip(img0, True, True)  # 上下左右反転
-        self.imgs = [img0, img1]  # 2枚の爆発画像
-        self.life = 30  # 爆発が表示されるフレーム数
+        img0 = pg.image.load("fig/explosion.gif")
+        img1 = pg.transform.flip(img0, True, True)
+        self.imgs = [img0, img1]
+        self.life = 30
         self.rct = self.imgs[0].get_rect()
-        self.rct.center = center  # 爆発中心位置
+        self.rct.center = center
 
     def update(self, screen: pg.Surface):
         self.life -= 1
         if self.life > 0:
-            img = self.imgs[self.life % 2]  # 交互に切替
+            img = self.imgs[self.life % 2]
             screen.blit(img, self.rct)
 
 
@@ -140,7 +150,7 @@ def main():
     bird = Bird((300, 200))
     bombs = [Bomb((255, 0, 0), 10) for _ in range(NUM_OF_BOMBS)]
     beams: list[Beam] = []
-    explosions: list[Explosion] = []  # ★爆発リスト
+    explosions: list[Explosion] = []
     score = Score()
 
     clock = pg.time.Clock()
@@ -151,13 +161,12 @@ def main():
             if event.type == pg.QUIT:
                 return
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.append(Beam(bird))
+                beams.append(Beam(bird))  # ★向きに応じたビーム発射
 
         screen.blit(bg_img, [0, 0])
 
         # --- 衝突処理 ---
         for i, bomb in enumerate(bombs):
-            # こうかとんが爆弾に当たったらゲームオーバー
             if bird.rct.colliderect(bomb.rct):
                 bird.change_img(8, screen)
                 fonto = pg.font.Font(None, 80)
@@ -167,18 +176,18 @@ def main():
                 time.sleep(1)
                 return
 
-            # ビームと爆弾の衝突判定
+            # ビームと爆弾の衝突
             for j, beam in enumerate(beams):
                 if beam is not None and beam.rct.colliderect(bomb.rct):
                     bombs[i] = None
                     beams[j] = None
                     score.add(1)
-                    explosions.append(Explosion(bomb.rct.center))  # ★爆発発生
+                    explosions.append(Explosion(bomb.rct.center))
 
-        # リスト更新（None削除 & 画面外ビーム削除）
+        # リスト更新
         bombs = [b for b in bombs if b is not None]
         beams = [b for b in beams if b is not None and check_bound(b.rct)[0]]
-        explosions = [ex for ex in explosions if ex.life > 0]  # ★生き残り爆発だけ残す
+        explosions = [ex for ex in explosions if ex.life > 0]
 
         # --- 描画 ---
         key_lst = pg.key.get_pressed()
@@ -187,7 +196,7 @@ def main():
             beam.update(screen)
         for bomb in bombs:
             bomb.update(screen)
-        for ex in explosions:  # ★爆発を描画
+        for ex in explosions:
             ex.update(screen)
         score.update(screen)
 
