@@ -21,9 +21,10 @@ def check_bound(obj_rct: pg.Rect) -> tuple[bool, bool]:
         tate = False
     return yoko, tate
 
-
+    
 class Bird:
-    """こうかとん"""
+    """こうかとん
+                """
     delta = {
         pg.K_UP: (0, -5),
         pg.K_DOWN: (0, +5),
