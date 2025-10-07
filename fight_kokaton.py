@@ -36,14 +36,14 @@ class Bird:
     img0 = pg.transform.rotozoom(pg.image.load("fig/3.png"), 0, 0.9)
     img = pg.transform.flip(img0, True, False)  # デフォルトのこうかとん（右向き）
     imgs = {  # 0度から反時計回りに定義
-        (+5, 0): img,  # 右
-        (+5, -5): pg.transform.rotozoom(img, 45, 0.9),  # 右上
-        (0, -5): pg.transform.rotozoom(img, 90, 0.9),   # 上
-        (-5, -5): pg.transform.rotozoom(img0, -45, 0.9),# 左上
-        (-5, 0): img0,                                   # 左
-        (-5, +5): pg.transform.rotozoom(img0, 45, 0.9), # 左下
-        (0, +5): pg.transform.rotozoom(img, -90, 0.9),  # 下
-        (+5, +5): pg.transform.rotozoom(img, -45, 0.9), # 右下
+        (+5, 0): img,
+        (+5, -5): pg.transform.rotozoom(img, 45, 0.9),
+        (0, -5): pg.transform.rotozoom(img, 90, 0.9),
+        (-5, -5): pg.transform.rotozoom(img0, -45, 0.9),
+        (-5, 0): img0,
+        (-5, +5): pg.transform.rotozoom(img0, 45, 0.9),
+        (0, +5): pg.transform.rotozoom(img, -90, 0.9),
+        (+5, +5): pg.transform.rotozoom(img, -45, 0.9),
     }
 
     def __init__(self, xy: tuple[int, int]):
@@ -79,9 +79,8 @@ class Beam:
         self.vx, self.vy = +5, 0
 
     def update(self, screen: pg.Surface):
-        if check_bound(self.rct) == (True, True):
-            self.rct.move_ip(self.vx, self.vy)
-            screen.blit(self.img, self.rct)
+        self.rct.move_ip(self.vx, self.vy)
+        screen.blit(self.img, self.rct)
 
 
 class Bomb:
@@ -105,17 +104,13 @@ class Bomb:
 
 
 class Score:
-    """
-    スコア表示
-    """
+    """スコア表示"""
     def __init__(self):
-        # 日本語フォント指定（環境により無ければ代替フォントが使われます）
         self.fonto = pg.font.SysFont("hgp創英角ﾎﾟｯﾌﾟ体", 30)
-        self.color = (0, 0, 255)   # 青
+        self.color = (0, 0, 255)
         self.value = 0
         self.img = self.fonto.render(f"スコア：{self.value}", True, self.color)
         self.rct = self.img.get_rect()
-        # 画面左下寄り（例：x=100, 下から50px）
         self.rct.center = (100, HEIGHT - 50)
 
     def add(self, n: int = 1):
@@ -132,9 +127,9 @@ def main():
     bg_img = pg.image.load("fig/pg_bg.jpg")
 
     bird = Bird((300, 200))
-    beam = None  # 最初はビーム無し
-    bombs = [Bomb((255, 0, 0), 10) for _ in range(NUM_OF_BOMBS)]  # 複数爆弾
-    score = Score()  # スコア
+    bombs = [Bomb((255, 0, 0), 10) for _ in range(NUM_OF_BOMBS)]
+    beams: list[Beam] = []  # ★複数ビーム用のリスト
+    score = Score()
 
     clock = pg.time.Clock()
     tmr = 0
@@ -144,14 +139,13 @@ def main():
             if event.type == pg.QUIT:
                 return
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                if beam is None:           # 単発ビーム（複数化は後で）
-                    beam = Beam(bird)
+                beams.append(Beam(bird))  # ★スペースキーでビーム追加
 
         screen.blit(bg_img, [0, 0])
 
-        # --- 衝突処理：爆弾×こうかとん／爆弾×ビーム ---
+        # --- 衝突処理 ---
         for i, bomb in enumerate(bombs):
-            # こうかとんに当たったらゲームオーバー
+            # こうかとんが爆弾に当たったら終了
             if bird.rct.colliderect(bomb.rct):
                 bird.change_img(8, screen)
                 fonto = pg.font.Font(None, 80)
@@ -161,20 +155,22 @@ def main():
                 time.sleep(1)
                 return
 
-            # ビームが当たったら爆弾＆ビーム消滅＋スコア加点
-            if beam is not None and beam.rct.colliderect(bomb.rct):
-                bombs[i] = None
-                beam = None
-                score.add(1)
+            # 各ビームとの衝突
+            for j, beam in enumerate(beams):
+                if beam is not None and beam.rct.colliderect(bomb.rct):
+                    bombs[i] = None
+                    beams[j] = None
+                    score.add(1)  # ★1点加算
 
-        # Noneを除外（以後Noneチェック不要）
+        # None削除＋画面外削除
         bombs = [b for b in bombs if b is not None]
+        beams = [b for b in beams if b is not None and check_bound(b.rct)[0]]
 
-        # --- 更新＆描画 ---
+        # --- 描画 ---
         key_lst = pg.key.get_pressed()
         bird.update(key_lst, screen)
 
-        if beam is not None:
+        for beam in beams:
             beam.update(screen)
 
         for bomb in bombs:
